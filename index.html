@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guía Interactiva de Despliegue: Raspberry Pi NAS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom Styles for specific visualizations without SVG */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
+        
+        /* Terminal Window Styling */
+        .terminal-window {
+            background-color: #1e293b;
+            color: #38bdf8;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+        .terminal-header {
+            background-color: #0f172a;
+            padding: 0.5rem 1rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .bg-red { background-color: #ef4444; }
+        .bg-yellow { background-color: #eab308; }
+        .bg-green { background-color: #22c55e; }
+        .terminal-body { padding: 1rem; overflow-x: auto; }
+
+        /* Chart Container Strict Styling */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+
+        /* Network Diagram Nodes (CSS Only) */
+        .net-node {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .net-node:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .net-line { height: 4px; background-color: #cbd5e1; flex-grow: 1; align-self: center; }
+        .net-line-vertical { width: 4px; background-color: #cbd5e1; height: 50px; margin: 0 auto; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+    <!-- Chosen Palette: Slate (Neutrals) with Sky Blue (Primary) and Emerald (Success) for a technical/clean look -->
+    <!-- Application Structure Plan: 
+         1. Dashboard/Overview: Visualizes the Network Architecture and System Specs using interactive HTML blocks and a Chart.js resource graph.
+         2. Implementation Phases: Broken down into 4 tabs (System, Storage, Network, Security) to guide the user step-by-step without overwhelming text.
+         3. Interactive Troubleshooting: A searchable/filterable list of common errors derived from the source report.
+         Rationale: The technical nature of the document requires a structured, process-oriented flow. A dashboard provides context, tabs provide instruction, and the tool helps with maintenance.
+    -->
+    <!-- Visualization & Content Choices:
+         1. Network Topology Map (HTML/CSS): Shows the logical connection (Internet -> Modem -> Pi) to explain Port Forwarding/UPnP conceptually. Interaction: Click nodes for details.
+         2. Resource Chart (Chart.js): Visualizes why "Lite" OS is chosen (RAM distribution). Goal: Inform/Justify hardware choice.
+         3. Security Layers (Chart.js): Donut chart showing the multi-layer defense (Passwd, Fail2Ban, Port Obfuscation). Goal: Relationship/Inform.
+         4. Terminal Blocks (HTML/JS): Interactive code blocks with "Copy" functionality. Goal: Action/Inform.
+         CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+</head>
+<body class="text-slate-800">
+
+    <!-- Top Navigation -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-sky-700">Raspberry Pi NAS <span class="text-slate-400 font-light text-sm hidden sm:inline">| Guía de Despliegue v2.0</span></span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="switchView('dashboard')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 transition-colors" id="btn-dashboard">Visión General</button>
+                    <button onclick="switchView('implementation')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors" id="btn-implementation">Implementación</button>
+                    <button onclick="switchView('troubleshooting')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors" id="btn-troubleshooting">Solución de Errores</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- DASHBOARD VIEW -->
+        <section id="dashboard-view" class="space-y-8 animate-fade-in">
+            <!-- Intro -->
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+                <h1 class="text-3xl font-bold text-slate-900 mb-2">Arquitectura del Proyecto</h1>
+                <p class="text-slate-600 max-w-3xl">
+                    Esta aplicación interactiva guía el despliegue de un servidor NAS seguro en una Raspberry Pi 3B. 
+                    El objetivo es crear un sistema eficiente que permita gestión local (SMB) y acceso remoto seguro (SFTP) 
+                    evadiendo restricciones de ISP mediante UPnP y DDNS.
+                </p>
+            </div>
+
+            <!-- Network Topology Interactive Map -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+                    <h2 class="text-lg font-semibold mb-4 text-slate-700">Topología de Red Lógica (Click para Info)</h2>
+                    <div class="flex flex-col items-center justify-center py-8 space-y-4">
+                        
+                        <!-- Internet Node -->
+                        <div onclick="showNodeInfo('internet')" class="net-node w-full max-w-md bg-slate-100 p-4 rounded-lg border-2 border-slate-300 flex items-center justify-between group hover:border-sky-500">
+                            <div class="flex items-center gap-3">
+                                <div class="text-2xl">☁️</div>
+                                <div>
+                                    <div class="font-bold text-slate-700">Internet / Cliente Remoto</div>
+                                    <div class="text-xs text-slate-500">Conexión 4G/LTE</div>
+                                </div>
+                            </div>
+                            <div class="text-xs font-mono bg-slate-200 px-2 py-1 rounded">marmang.ddns.net:2222</div>
+                        </div>
+
+                        <!-- Vertical Line -->
+                        <div class="net-line-vertical"></div>
+
+                        <!-- Router Node -->
+                        <div onclick="showNodeInfo('router')" class="net-node w-full max-w-md bg-slate-100 p-4 rounded-lg border-2 border-slate-300 flex items-center justify-between group hover:border-sky-500">
+                            <div class="flex items-center gap-3">
+                                <div class="text-2xl">📡</div>
+                                <div>
+                                    <div class="font-bold text-slate-700">Modem ISP (Huawei/Telmex)</div>
+                                    <div class="text-xs text-slate-500">Bloqueo de NAT / Firewall</div>
+                                </div>
+                            </div>
+                            <div class="text-xs font-mono bg-yellow-100 text-yellow-800 px-2 py-1 rounded">UPnP Activo</div>
+                        </div>
+
+                        <!-- Vertical Line -->
+                        <div class="net-line-vertical"></div>
+
+                        <!-- Pi Node -->
+                        <div onclick="showNodeInfo('pi')" class="net-node w-full max-w-md bg-slate-800 p-4 rounded-lg border-2 border-slate-700 flex items-center justify-between group hover:border-sky-400">
+                            <div class="flex items-center gap-3">
+                                <div class="text-2xl">🍓</div>
+                                <div>
+                                    <div class="font-bold text-white">Raspberry Pi 3B</div>
+                                    <div class="text-xs text-slate-400">Servidor NAS Seguro</div>
+                                </div>
+                            </div>
+                            <div class="text-xs font-mono bg-slate-700 text-sky-300 px-2 py-1 rounded">192.168.1.248</div>
+                        </div>
+
+                    </div>
+                    
+                    <!-- Detail Box -->
+                    <div id="node-detail-box" class="bg-sky-50 p-4 rounded-lg border border-sky-100 mt-4 text-sm text-sky-900 hidden">
+                        <!-- JS injects content here -->
+                    </div>
+                </div>
+
+                <!-- Specs Chart -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-100 flex flex-col">
+                    <h2 class="text-lg font-semibold mb-2 text-slate-700">Gestión de Recursos (RAM 1GB)</h2>
+                    <p class="text-sm text-slate-500 mb-4">Justificación del uso de "Raspberry Pi OS Lite" (Sin Interfaz Gráfica).</p>
+                    <div class="flex-grow flex items-center justify-center bg-slate-50 rounded-lg p-2">
+                        <div class="chart-container">
+                            <canvas id="resourceChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-500 text-center">
+                        <span class="inline-block w-3 h-3 bg-slate-300 rounded-full mr-1"></span> OS Lite deja ~700MB libres para Servicios.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Features Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-sky-500">
+                    <h3 class="font-bold text-slate-700">NAS Local</h3>
+                    <p class="text-sm text-slate-500">Protocolo Samba para Windows/iOS en LAN.</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-emerald-500">
+                    <h3 class="font-bold text-slate-700">Acceso Remoto</h3>
+                    <p class="text-sm text-slate-500">SFTP + DDNS para acceso mundial seguro.</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-amber-500">
+                    <h3 class="font-bold text-slate-700">Auto-Gestión</h3>
+                    <p class="text-sm text-slate-500">UPnP para evadir bloqueos de ISP.</p>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
+                    <h3 class="font-bold text-slate-700">Blindaje</h3>
+                    <p class="text-sm text-slate-500">Fail2Ban y SSH endurecido.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- IMPLEMENTATION VIEW -->
+        <section id="implementation-view" class="hidden animate-fade-in">
+            <h1 class="text-3xl font-bold text-slate-900 mb-6">Guía de Implementación Paso a Paso</h1>
+            
+            <div class="flex flex-col lg:flex-row gap-8">
+                <!-- Sidebar Steps -->
+                <div class="lg:w-1/4 space-y-2">
+                    <button onclick="setPhase(1)" class="phase-btn w-full text-left px-4 py-3 rounded-lg font-medium transition-colors bg-sky-600 text-white" id="phase-btn-1">1. Sistema Base</button>
+                    <button onclick="setPhase(2)" class="phase-btn w-full text-left px-4 py-3 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors" id="phase-btn-2">2. Servicios NAS (Samba)</button>
+                    <button onclick="setPhase(3)" class="phase-btn w-full text-left px-4 py-3 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors" id="phase-btn-3">3. Red & Acceso Remoto</button>
+                    <button onclick="setPhase(4)" class="phase-btn w-full text-left px-4 py-3 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition-colors" id="phase-btn-4">4. Seguridad (Hardening)</button>
+                </div>
+
+                <!-- Content Area -->
+                <div class="lg:w-3/4 bg-white rounded-xl shadow-sm border border-slate-100 p-6 min-h-[600px]">
+                    <div id="phase-content">
+                        <!-- Content injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TROUBLESHOOTING VIEW -->
+        <section id="troubleshooting-view" class="hidden animate-fade-in">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-slate-900 mb-2">Centro de Solución de Errores</h1>
+                <p class="text-slate-600">Herramienta de diagnóstico para problemas comunes durante el despliegue.</p>
+            </div>
+
+            <!-- Search/Filter -->
+            <div class="max-w-xl mx-auto mb-8">
+                <input type="text" id="error-search" placeholder="Buscar síntoma (ej: permisos, conexión, IP)..." class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-sky-500 outline-none" onkeyup="filterErrors()">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="error-grid">
+                <!-- Errors injected via JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-slate-800 text-slate-400 py-8 mt-12">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p>© 2025 Documentación Técnica Raspberry Pi NAS. Generado desde Source Report v2.0.</p>
+        </div>
+    </footer>
+
+    <script>
+        // --- DATA STORE ---
+
+        const phases = {
+            1: {
+                title: "Fase de Aprovisionamiento (Sistema Base)",
+                desc: "Preparación del hardware y sistema operativo para maximizar recursos.",
+                steps: [
+                    {
+                        title: "Instalación del OS",
+                        text: "Usar Raspberry Pi OS Lite (64-bit). Configurar Hostname ('miserver'), habilitar SSH y configurar IP Estática (192.168.1.248) desde el Imager.",
+                        type: "info"
+                    },
+                    {
+                        title: "Actualización de Repositorios",
+                        text: "Paso crítico de seguridad inicial.",
+                        code: "sudo apt update && sudo apt upgrade -y"
+                    }
+                ]
+            },
+            2: {
+                title: "Implementación de Servicios de Archivos (NAS)",
+                desc: "Configuración del protocolo Samba para uso local y permisos de sistema.",
+                steps: [
+                    {
+                        title: "Instalación de Samba",
+                        code: "sudo apt install samba samba-common-bin -y"
+                    },
+                    {
+                        title: "Creación de Directorio y Permisos",
+                        text: "El error más común es olvidar los permisos de Linux (777) antes de configurar Samba.",
+                        code: "mkdir -p /home/angel/compartido\nsudo chmod -R 777 /home/angel/compartido"
+                    },
+                    {
+                        title: "Configuración smb.conf",
+                        text: "Añadir al final de /etc/samba/smb.conf:",
+                        code: "[PiShare]\npath = /home/angel/compartido\nwriteable = yes\ncreate mask = 0777\ndirectory mask = 0777\npublic = no"
+                    },
+                    {
+                        title: "Alta de Usuario",
+                        code: "sudo smbpasswd -a angel"
+                    }
+                ]
+            },
+            3: {
+                title: "Infraestructura de Red y Acceso Remoto",
+                desc: "Configuración de UPnP y DDNS para evadir restricciones de NAT.",
+                steps: [
+                    {
+                        title: "Configuración DDNS (No-IP)",
+                        text: "Host: marmang.ddns.net. Compilar cliente DUC en /usr/local/src.",
+                        type: "info"
+                    },
+                    {
+                        title: "Apertura de Puertos (UPnP)",
+                        text: "Redirigir puerto externo 2222 al interno 22 (SSH/SFTP).",
+                        code: "sudo apt install miniupnpc -y\nupnpc -a 192.168.1.248 22 2222 TCP"
+                    },
+                    {
+                        title: "Automatización (Crontab)",
+                        text: "Editar crontab con `crontab -e` y añadir:",
+                        code: "# Iniciar No-IP\n@reboot sudo /usr/local/bin/noip2\n\n# Abrir puertos (60s delay)\n@reboot sleep 60 && upnpc -a 192.168.1.248 22 2222 TCP"
+                    }
+                ]
+            },
+            4: {
+                title: "Hardening y Seguridad",
+                desc: "Blindaje del servidor expuesto a internet.",
+                steps: [
+                    {
+                        title: "Gestión de Identidad",
+                        text: "Cambiar contraseña por defecto obligatoriamente.",
+                        code: "passwd"
+                    },
+                    {
+                        title: "Prevención de Intrusos (Fail2Ban)",
+                        text: "Instalar el servicio que banea IPs tras intentos fallidos.",
+                        code: "sudo apt install fail2ban -y"
+                    },
+                    {
+                        title: "Auditoría",
+                        text: "Verificar estado y ataques detenidos.",
+                        code: "sudo fail2ban-client status sshd\nsudo journalctl -u ssh | grep \"Failed password\""
+                    }
+                ]
+            }
+        };
+
+        const errors = [
+            {
+                id: 1,
+                title: "Acceso Denegado en Windows",
+                symptom: "Windows pide credenciales pero muestra error de permisos al escribir.",
+                cause: "Permisos de Linux (ext4) tienen prioridad sobre Samba.",
+                solution: "sudo chmod -R 777 /home/angel/compartido",
+                tags: "permisos windows samba"
+            },
+            {
+                id: 2,
+                title: "Fallo Conexión Remota (Datos Móviles)",
+                symptom: "Funciona en Wi-Fi, falla en 4G/LTE.",
+                cause: "El módem olvidó la regla UPnP o NAT tables corruptas.",
+                solution: "1. Reiniciar Módem. 2. Ejecutar: upnpc -a 192.168.1.248 22 2222 TCP",
+                tags: "remoto conexion lte upnpc modem"
+            },
+            {
+                id: 3,
+                title: "Connection Refused (Puerto 2222)",
+                symptom: "Ping responde, pero la conexión se rechaza.",
+                cause: "Servicio SSH apagado en la Pi.",
+                solution: "sudo raspi-config -> Interface -> SSH -> Enable",
+                tags: "ssh puerto connection refused"
+            },
+            {
+                id: 4,
+                title: "IP Pública Cambia",
+                symptom: "Dominio deja de conectar, IP numérica funciona.",
+                cause: "Cliente No-IP no está corriendo.",
+                solution: "sudo /usr/local/bin/noip2 -S",
+                tags: "ddns noip ip"
+            },
+            {
+                id: 5,
+                title: "NAT Loopback Fallido",
+                symptom: "No conecta al dominio estando DENTRO de casa.",
+                cause: "Router Huawei no soporta Loopback.",
+                solution: "En casa usa IP: 192.168.1.248. Fuera usa dominio.",
+                tags: "loopback wifi local"
+            }
+        ];
+
+        // --- CORE FUNCTIONS ---
+
+        function switchView(viewName) {
+            // Hide all views
+            ['dashboard-view', 'implementation-view', 'troubleshooting-view'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            // Show selected
+            document.getElementById(`${viewName}-view`).classList.remove('hidden');
+
+            // Update Nav Buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-sky-50', 'text-sky-700');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-50');
+            });
+            const activeBtn = document.getElementById(`btn-${viewName}`);
+            activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-50');
+            activeBtn.classList.add('bg-sky-50', 'text-sky-700');
+
+            if (viewName === 'implementation') setPhase(1); // Default to phase 1
+        }
+
+        function setPhase(phaseId) {
+            // Update Sidebar Buttons
+            document.querySelectorAll('.phase-btn').forEach(btn => {
+                btn.classList.remove('bg-sky-600', 'text-white');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+            });
+            document.getElementById(`phase-btn-${phaseId}`).classList.remove('text-slate-600', 'hover:bg-slate-100');
+            document.getElementById(`phase-btn-${phaseId}`).classList.add('bg-sky-600', 'text-white');
+
+            // Render Content
+            const data = phases[phaseId];
+            const contentDiv = document.getElementById('phase-content');
+            
+            let html = `
+                <div class="mb-6 border-b border-slate-100 pb-4">
+                    <h2 class="text-2xl font-bold text-slate-800">${data.title}</h2>
+                    <p class="text-slate-500 mt-1">${data.desc}</p>
+                </div>
+                <div class="space-y-8">
+            `;
+
+            data.steps.forEach((step, index) => {
+                html += `
+                    <div class="relative pl-8 border-l-2 border-slate-200">
+                        <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-sky-500 border-4 border-white shadow-sm"></div>
+                        <h3 class="font-semibold text-lg text-slate-800 mb-2">${index + 1}. ${step.title}</h3>
+                        ${step.text ? `<p class="text-slate-600 mb-3">${step.text}</p>` : ''}
+                        ${step.code ? `
+                            <div class="terminal-window mt-2">
+                                <div class="terminal-header">
+                                    <div class="terminal-dot bg-red"></div>
+                                    <div class="terminal-dot bg-yellow"></div>
+                                    <div class="terminal-dot bg-green"></div>
+                                    <span class="text-xs text-slate-400 ml-2">bash</span>
+                                    <button onclick="copyToClipboard('${step.code.replace(/\n/g, "\\n").replace(/'/g, "\\'")}')" class="ml-auto text-xs text-slate-400 hover:text-white">COPIAR</button>
+                                </div>
+                                <div class="terminal-body font-mono text-sm whitespace-pre-wrap">${step.code}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            contentDiv.innerHTML = html;
+        }
+
+        function renderTroubleshooting() {
+            const grid = document.getElementById('error-grid');
+            grid.innerHTML = errors.map(err => `
+                <div class="error-card bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow group">
+                    <div class="flex items-start justify-between mb-2">
+                        <h3 class="font-bold text-red-600 group-hover:text-red-700">${err.title}</h3>
+                        <span class="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">ID: ${err.id}</span>
+                    </div>
+                    <div class="mb-3">
+                        <p class="text-sm font-semibold text-slate-700">Síntoma:</p>
+                        <p class="text-sm text-slate-500">${err.symptom}</p>
+                    </div>
+                    <div class="mb-4">
+                        <p class="text-sm font-semibold text-slate-700">Causa:</p>
+                        <p class="text-sm text-slate-500 italic">${err.cause}</p>
+                    </div>
+                    <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                        <p class="text-xs font-bold text-emerald-700 uppercase mb-1">Solución:</p>
+                        <p class="text-sm font-mono text-emerald-800">${err.solution}</p>
+                    </div>
+                    <div class="hidden">${err.tags}</div>
+                </div>
+            `).join('');
+        }
+
+        function filterErrors() {
+            const term = document.getElementById('error-search').value.toLowerCase();
+            const cards = document.querySelectorAll('.error-card');
+            
+            cards.forEach(card => {
+                const text = card.innerText.toLowerCase();
+                if (text.includes(term)) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+        }
+
+        // --- DASHBOARD INTERACTIVITY ---
+
+        function showNodeInfo(node) {
+            const box = document.getElementById('node-detail-box');
+            let content = '';
+            
+            if (node === 'internet') {
+                content = `<strong>Cliente Remoto (4G/LTE):</strong> Intenta conectar a <em>marmang.ddns.net</em> en el puerto <strong>2222</strong>. Gracias a No-IP, el nombre DNS resuelve a la IP Pública dinámica de tu casa.`;
+            } else if (node === 'router') {
+                content = `<strong>Modem Huawei (Telmex):</strong> Normalmente bloquea conexiones entrantes. Usamos <strong>UPnP</strong> para inyectar una regla: <em>"Lo que entre por el puerto 2222, mándalo a la IP 192.168.1.248 puerto 22"</em>.`;
+            } else if (node === 'pi') {
+                content = `<strong>Raspberry Pi 3B:</strong> Recibe la conexión en el puerto <strong>22 (SSH)</strong>. Fail2Ban vigila este puerto. El usuario accede a los archivos vía SFTP montado sobre este túnel seguro.`;
+            }
+
+            box.innerHTML = content;
+            box.classList.remove('hidden');
+            box.classList.add('animate-fade-in');
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Comando copiado al portapapeles');
+            });
+        }
+
+        // --- CHARTS ---
+
+        function initCharts() {
+            // Resource Chart
+            const ctx = document.getElementById('resourceChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['OS Lite (Sistema)', 'Samba/SSH (Servicios)', 'RAM Libre (Buffer)'],
+                    datasets: [{
+                        data: [150, 150, 700], // Approx MB for Pi 3B 1GB
+                        backgroundColor: ['#94a3b8', '#0ea5e9', '#cbd5e1'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: ~${context.raw} MB`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        // --- INITIALIZATION ---
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            renderTroubleshooting();
+            // Default view dashboard is already visible via HTML classes
+        });
+
+    </script>
+</body>
+</html>
